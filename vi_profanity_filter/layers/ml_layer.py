@@ -5,6 +5,7 @@ from typing import Any
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from transformers import AutoModel, AutoTokenizer
 
 from .wordlist_layer import BaseFilterLayer
@@ -120,7 +121,7 @@ class MLLayer(BaseFilterLayer):
         )
         with torch.no_grad():
             logits = self._model(**inputs)
-            probs = torch.softmax(logits, dim=-1)[0]
+            probs = F.softmax(logits, dim=-1)[0]
 
         # Chỉ giữ 2 nhãn: CLEAN và OFFENSIVE.
         # HATE (class 2) được remap thành OFFENSIVE.
