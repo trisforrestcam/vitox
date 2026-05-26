@@ -7,7 +7,6 @@ from typing import Any
 
 from .layers.ml_layer import MLLayer
 from .layers.wordlist_layer import BaseFilterLayer, WordlistLayer
-from .utils.accent_restorer import AccentRestorer
 from .utils.normalizer import TextNormalizer
 from .utils.teencode import TeencodeConverter
 
@@ -23,7 +22,6 @@ class ViProfanityFilter:
         ml_model: str = "visolex/phobert-v2-hsd",
         skip_ml: bool = False,
         ml_threshold: float = 0.9,
-        enable_accent_restore: bool = True,
     ) -> None:
         """Khởi tạo filter.
 
@@ -35,12 +33,9 @@ class ViProfanityFilter:
                 chỉ dùng wordlist layer.
             ml_threshold: Ngưỡng confidence score tối thiểu để ML layer
                 đánh dấu text là profane.
-            enable_accent_restore: Nếu ``True``, bật accent restoration
-                trước khi đưa vào ML layer (giúp handle text không dấu).
         """
         self._normalizer = TextNormalizer()
         self._teencode = TeencodeConverter()
-        self._accent_restorer = AccentRestorer() if enable_accent_restore else None
         self._ml_threshold = ml_threshold
 
         # Resolve wordlist path từ package root
@@ -100,14 +95,7 @@ class ViProfanityFilter:
         #         "layer_used": "wordlist",
         #     }
 
-        # Accent restoration: bổ sung dấu tiếng Việt cho text không dấu
-        # trước khi đưa vào ML layer
-        if self._accent_restorer is not None:
-            restored = self._accent_restorer.restore(normalised)
-            normalised = self._normalizer.strip_attached_punctuation(restored)
-            print(f"[DEBUG] After accent restore: {normalised!r}")
-
-        # Layer 2 – ML (chạy trên normalized + accent-restored text)
+        # Layer 2 – ML (chạy trên normalized text)
         if self._ml is not None:
             ml_result = self._ml.check(normalised)
             label = ml_result.get("label", "CLEAN")
