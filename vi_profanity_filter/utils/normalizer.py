@@ -76,3 +76,15 @@ class TextNormalizer:
         return " ".join(
             re.sub(f"^[{punct}]+|[{punct}]+$", "", word) for word in text.split(" ")
         )
+
+    @classmethod
+    def strip_diacritics(cls, text: str) -> str:
+        """Bỏ dấu tiếng Việt, trả về dạng ASCII cơ bản.
+
+        Dùng để match wordlist với text viết không dấu.
+        """
+        return "".join(
+            ch
+            for ch in unicodedata.normalize("NFD", text)
+            if unicodedata.category(ch) != "Mn"
+        )

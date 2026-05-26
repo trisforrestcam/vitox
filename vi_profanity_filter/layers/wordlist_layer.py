@@ -1,5 +1,6 @@
 """Wordlist-based profanity filter layer sử dụng better_profanity."""
 
+import unicodedata
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -40,6 +41,40 @@ class WordlistLayer(BaseFilterLayer):
         self._profanity = Profanity()
         self._profanity.load_censor_words_from_file(wordlist_path)
 
+        # Load wordlist không dấu để match text viết không dấu
+        self._ascii_profanity = Profanity()
+        ascii_words = self._build_ascii_wordlist(wordlist_path)
+        self._ascii_profanity.load_censor_words(ascii_words)
+
+    @staticmethod
+    def _build_ascii_wordlist(wordlist_path: str) -> list[str]:
+        """Đọc wordlist và strip dấu tiếng Việt + normalize đ -> d."""
+        words: list[str] = []
+        with open(wordlist_path, encoding="utf-8") as f:
+            for line in f:
+                w = line.strip()
+                if w:
+                    ascii_w = "".join(
+                        ch
+                        for ch in unicodedata.normalize("NFD", w)
+                        if unicodedata.category(ch) != "Mn"
+                    )
+                    # 'đ' là ký tự riêng trong Unicode, không phải d + dấu
+                    ascii_w = ascii_w.replace("đ", "d").replace("Đ", "D")
+                    if ascii_w:
+                        words.append(ascii_w)
+        return words
+
+    @staticmethod
+    def _strip_diacritics(text: str) -> str:
+        """Bỏ dấu tiếng Việt khỏi text + normalize đ -> d."""
+        text = "".join(
+            ch
+            for ch in unicodedata.normalize("NFD", text)
+            if unicodedata.category(ch) != "Mn"
+        )
+        return text.replace("đ", "d").replace("Đ", "D")
+
     def check(self, text: str) -> dict[str, Any]:
         """Kiểm tra *text* với wordlist đã load.
 
@@ -47,6 +82,9 @@ class WordlistLayer(BaseFilterLayer):
         để trích xuất các từ profanity tìm thấy. Nếu output censored
         chia tách từ khác nhau (hiếm gặp), layer sẽ fallback về
         simple profanity bool check.
+
+        Ngoài ra còn check text không dấu (ASCII fallback) để bắt
+        các trick viết không dấu.
 
         Args:
             text: Input text cần phân tích.
@@ -60,10 +98,10 @@ class WordlistLayer(BaseFilterLayer):
         if not text or not isinstance(text, str):
             return {"label": "CLEAN", "score": 0.0, "matched_words": []}
 
-        censored = self._profanity.censor(text)
-
         matched_words: list[str] = []
 
+        # 1. Check text gốc (có dấu)
+        censored = self._profanity.censor(text)
         try:
             original_words = text.split()
             censored_words = censored.split()
@@ -73,13 +111,28 @@ class WordlistLayer(BaseFilterLayer):
                     if orig != cens and "*" in cens:
                         matched_words.append(orig)
             else:
-                # Graceful fallback: kiểm tra xem có profanity nào tồn tại không.
                 if self._profanity.contains_profanity(text):
                     matched_words.append("[unknown]")
         except Exception:
-            # Nếu có lỗi trong quá trình so sánh, fallback về bool check.
             if self._profanity.contains_profanity(text):
                 matched_words.append("[unknown]")
+
+        # 2. Check text không dấu (ASCII fallback)
+        if not matched_words:
+            ascii_text = self._strip_diacritics(text)
+            if self._ascii_profanity.contains_profanity(ascii_text):
+                ascii_censored = self._ascii_profanity.censor(ascii_text)
+                try:
+                    ascii_words = ascii_text.split()
+                    ascii_censored_words = ascii_censored.split()
+                    if len(ascii_words) == len(ascii_censored_words):
+                        for orig, cens in zip(ascii_words, ascii_censored_words):
+                            if orig != cens and "*" in cens:
+                                matched_words.append(orig)
+                    else:
+                        matched_words.append("[unknown]")
+                except Exception:
+                    matched_words.append("[unknown]")
 
         label = "OFFENSIVE" if matched_words else "CLEAN"
         score = 1.0 if matched_words else 0.0

@@ -87,25 +87,23 @@ class ViProfanityFilter:
         normalised = self._normalizer.normalize(text)
         # teencode_converted = self._teencode.convert(normalised)
 
+        # Layer 1 – Wordlist (check cả có dấu và không dấu)
+        wordlist_result = self._wordlist.check(normalised)
+        if wordlist_result.get("label") != "CLEAN" or wordlist_result.get("matched_words"):
+            return {
+                "label": wordlist_result["label"],
+                "score": wordlist_result["score"],
+                "is_profane": True,
+                "matched_words": wordlist_result.get("matched_words", []),
+                "layer_used": "wordlist",
+            }
+
         # Accent restoration: bổ sung dấu tiếng Việt cho text không dấu
+        # trước khi đưa vào ML layer
         if self._accent_restorer is not None:
             restored = self._accent_restorer.restore(normalised)
             normalised = self._normalizer.strip_attached_punctuation(restored)
             print(f"[DEBUG] After accent restore: {normalised!r}")
-
-        # [TẠM TẮT] Layer 1 – Wordlist
-        # Đang tắt wordlist để test độ ổn định của ML layer.
-        # Khi nào cần bật lại thì uncomment block dưới:
-        #
-        # wordlist_result = self._wordlist.check(teencode_converted)
-        # if wordlist_result.get("label") != "CLEAN" or wordlist_result.get("matched_words"):
-        #     return {
-        #         "label": wordlist_result["label"],
-        #         "score": wordlist_result["score"],
-        #         "is_profane": True,
-        #         "matched_words": wordlist_result.get("matched_words", []),
-        #         "layer_used": "wordlist",
-        #     }
 
         # Layer 2 – ML (chạy trên normalized + accent-restored text)
         if self._ml is not None:
