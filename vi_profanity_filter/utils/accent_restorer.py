@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     import torch
@@ -36,7 +36,8 @@ class AccentRestorer:
 
         self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
         self._model = AutoModelForSeq2SeqLM.from_pretrained(self._model_name)
-        self._model.eval()
+        model = cast("torch.nn.Module", self._model)
+        model.eval()
 
     # ------------------------------------------------------------------ #
     #  Public API
@@ -67,7 +68,7 @@ class AccentRestorer:
 
         import torch
 
-        inputs = self._tokenizer(
+        inputs = self._tokenizer( #type: ignore[reportCallIssue]
             text,
             return_tensors="pt",
             padding=True,
