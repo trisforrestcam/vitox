@@ -64,3 +64,15 @@ class TextNormalizer:
         for ch in cls.ZERO_WIDTH_CHARS:
             text = text.replace(ch, "")
         return text
+
+    @classmethod
+    def strip_attached_punctuation(cls, text: str) -> str:
+        """Loại bỏ dấu câu dính vào đầu / cuối mỗi từ.
+
+        Giữ lại dấu câu đứng riêng hoặc ở giữa từ.
+        """
+        # Dấu câu phổ biến cần strip khỏi đầu/cuối word
+        punct = r"\"'\`\*\.\,\;\:\!\?\(\)\[\]\{\}\<\>"
+        return " ".join(
+            re.sub(f"^[{punct}]+|[{punct}]+$", "", word) for word in text.split(" ")
+        )
